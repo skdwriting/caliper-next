@@ -56,15 +56,98 @@ Note that the test class provides you with a number of convenience attributes:
 * A parameter passing system (and fetching system) that can be accessed by
   means of ``self.params``. This is hooked to the Multiplexer, about which
   you can find that more information at :doc:`Mux`.
+* And many more (see :mod:`avocado.core.test.Test`)
+
+Test statuses
+=============
+
+Avocado supports the most common exit statuses:
+
+* ``PASS`` - test passed, there were no untreated exceptions
+* ``WARN`` - a variant of ``PASS`` that keeps track of noteworthy events
+  that ultimately do not affect the test outcome. An example could be
+  ``soft lockup`` present in the ``dmesg`` output. It's not related to the
+  test results and unless there are failures in the test it means the feature
+  probably works as expected, but there were certain condition which might
+  be nice to review. (some result plugins does not support this and report
+  ``PASS`` instead)
+* ``SKIP`` - the test's pre-requisites were not satisfied and the test's
+  body was not executed (nor its ``tearDown``)
+* ``FAIL`` - test did not result in the expected outcome. A failure points
+  at a (possible) bug in the tested subject, and not in the test itself.
+  When the test (and its) execution breaks, an ``ERROR`` and not a ``FAIL``
+  is reported."
+* ``ERROR`` - this points (probably) at a bug in the test itself, and not
+  in the subject being tested.It is usually caused by uncaught exception
+  and such failures needs to be thoroughly explored and should lead to
+  test modification to avoid this failure or to use ``self.fail`` along
+  with description how the subject under testing failed to perform it's
+  task.
+* ``INTERRUPTED`` - this result can't be set by the test writer, it is
+  only possible when the timeout is reached or when the user hits
+  ``CTRL+C`` while executing this test.
+* other - there are some other internal test statuses, but you should not
+  ever face them.
+
+As you can see the ``FAIL`` is a neat status, if tests are developed
+correctly. When writing tests always think about what its ``setUp``
+should be, what the ``test body`` and is expected to go wrong in the
+test. To support you Avocado supports several methods:
+
+Test methods
+------------
+
+The simplest way to set the status is to use ``self.fail`` or
+``self.error`` directly from test. One can also use ``self.skip``
+but only from the ``setUp`` method.
+
+To remember a warning, one simply writes to ``self.log.warning``
+logger. This won't interrupt the test execution, but it will
+remember the condition and, if there are no failures, will
+report the test as ``WARN``.
+
+Turning errors into failures
+----------------------------
+
+Errors on Python code are commonly signaled in the form of exceptions
+being thrown.  When Avocado runs a test, any unhandled exception will
+be seen as a test ``ERROR``, and not as a ``FAIL``.
+
+Still, it's common to rely on libraries, which usually raise custom
+(or builtin) exceptions. Those exceptions would normally result in
+``ERROR`` but if you are certain this is an odd behavior of the
+object under testing, you should catch the exception and explain
+the failure in ``self.fail`` method::
+
+    try:
+        process.run("stress_my_feature")
+    except process.CmdError as details:
+        self.fail("The stress comamnd failed: %s" % details)
+
+If your test compounds of many executions and you can't get this exception
+in other case then expected failure, you can simplify the code by using
+``fail_on`` decorator::
+
+    avocado.fail_on(process.CmdError)
+    def test(self):
+        process.run("first cmd")
+        process.run("second cmd")
+        process.run("third cmd")
+
+Once again, keeping your tests up-to-date and distinguishing between
+``FAIL`` and ``ERROR`` will save you a lot of time while reviewing the
+test results.
 
 Saving test generated (custom) data
 ===================================
 
 Each test instance provides a so called ``whiteboard``. It can be accessed
 through ``self.whiteboard``. This whiteboard is simply a string that will be
-automatically saved to test results (as long as the output format supports it).
-If you choose to save binary data to the whiteboard, it's your responsibility to
-encode it first (base64 is the obvious choice).
+automatically saved to test results after the test finishes (it's not synced
+during the execution so when the machine or python crashes badly it might
+not be present and one should use direct io to the ``outputdir`` for
+critical data). If you choose to save binary data to the whiteboard,
+it's your responsibility to encode it first (base64 is the obvious choice).
 
 Building on the previously demonstrated ``sleeptest``, suppose that you want to save the
 sleep length to be used by some other script or data analysis tool::
@@ -375,6 +458,8 @@ It can be run by::
    Ran 1 test in 0.000s
 
    OK
+
+But we'd still recommend using ``avocado.main`` instead which is our main entry point.
 
 Setup and cleanup methods
 =========================
@@ -747,14 +832,6 @@ namely the ``--output-check-record`` argument with values ``stdout``,
 to the files ``stdout.expected`` and ``stderr.expected`` at the test's
 data directory (which is different from the job/test results directory).
 
-Avocado Tests run on a separate process
-=======================================
-
-In order to avoid tests to mess around the environment used by the main
-Avocado runner process, tests are run on a forked subprocess. This allows
-for more robustness (tests are not easily able to mess/break Avocado) and
-some nifty features, such as setting test timeouts.
-
 Setting a Test Timeout
 ======================
 
@@ -827,6 +904,93 @@ a timeout of 3 seconds before Avocado ends the test forcefully by sending a
 :class:`avocado.core.exceptions.TestTimeoutError`.
 
 
+Skipping Tests
+==============
+
+Avocado offers some options for the test writers to skip a test:
+
+Test ``skip()`` Method
+----------------------
+
+Using the ``skip()`` method available in the Test API is only allowed
+inside the ``setUp()`` method. Calling ``skip()`` from inside the test is not
+allowed as, by concept, you cannot skip a test after it's already initiated.
+
+The test below::
+
+    import avocado
+
+    class MyTestClass(avocado.Test):
+
+        def setUp(self):
+            if self.check_condition():
+                self.skip('Test skipped due to the condition.')
+
+        def test(self):
+            pass
+
+        def check_condition(self):
+            return True
+
+Will produce the following result::
+
+    $ avocado run test_skip_method.py 
+    JOB ID     : 1bd8642400e3b6c584979504cafc4318f7a5fb65
+    JOB LOG    : $HOME/avocado/job-results/job-2017-02-03T17.16-1bd8642/job.log
+    TESTS      : 1
+     (1/1) test_skip_method.py:MyTestClass.test: SKIP
+    RESULTS    : PASS 0 | ERROR 0 | FAIL 0 | SKIP 1 | WARN 0 | INTERRUPT 0
+    TESTS TIME : 0.00 s
+    JOB HTML   : $HOME/avocado/job-results/job-2017-02-03T17.16-1bd8642/html/results.html
+
+
+Avocado Skip Decorators
+-----------------------
+
+Another way to skip tests is by using the Avocado skip decorators:
+
+- ``@avocado.skip(reason)``: Skips a test.
+- ``@avocado.skipIf(condition, reason)``: Skips a test if the condition is
+  ``True``.
+- ``@avocado.skipUnless(condition, reason)``: Skips a test if the condition is
+  ``False``
+
+Those decorators can be used with both ``setUp()`` method and/or and in the
+``test*()`` methods. The test below::
+
+    import avocado
+
+    class MyTest(avocado.Test):
+
+        @avocado.skipIf(1 == 1, 'Skipping on True condition.')
+        def test1(self):
+            pass
+
+        @avocado.skip("Don't want this test now.")
+        def test2(self):
+            pass
+
+        @avocado.skipUnless(1 == 1, 'Skipping on False condition.')
+        def test3(self):
+            pass
+
+Will produce the following result::
+
+    $ avocado run  test_skip_decorators.py
+    JOB ID     : 59c815f6a42269daeaf1e5b93e52269fb8a78119
+    JOB LOG    : $HOME/avocado/job-results/job-2017-02-03T17.41-59c815f/job.log
+    TESTS      : 3
+     (1/3) test_skip_decorators.py:MyTest.test1: SKIP
+     (2/3) test_skip_decorators.py:MyTest.test2: SKIP
+     (3/3) test_skip_decorators.py:MyTest.test3: PASS (0.02 s)
+    RESULTS    : PASS 1 | ERROR 0 | FAIL 0 | SKIP 2 | WARN 0 | INTERRUPT 0
+    TESTS TIME : 0.03 s
+    JOB HTML   : $HOME/avocado/job-results/job-2017-02-03T17.41-59c815f/html/results.html
+
+Notice the ``test3`` was not skipped because the provided condition was
+not ``False``.
+
+
 Docstring Directives
 ====================
 
@@ -854,7 +1018,8 @@ If your test is a method in a class that directly inherits from
 Now, the need may arise for more complex tests, to use more advanced
 Python features such as inheritance.  For those tests that are written
 in a class not directly inherting from :class:`avocado.Test`, Avocado
-may need your help.
+may need your help, because Avocado uses only static analysis to examine
+the files.
 
 For example, suppose that you define a new test class that inherits
 from the Avocado base test class, that is, :class:`avocado.Test`, and
@@ -1216,7 +1381,7 @@ Here are the current variables that Avocado exports to the tests:
 +-----------------------------+---------------------------------------+-----------------------------------------------------------------------------------------------------+
 | AVOCADO_TEST_SYSINFODIR     | The system information directory      | $HOME/logs/job-results/job-2014-09-16T14.38-ac332e6/test-results/$HOME/my_test.sh.1/sysinfo         |
 +-----------------------------+---------------------------------------+-----------------------------------------------------------------------------------------------------+
-| *                           | All variables from --mux-yaml         | TIMEOUT=60; IO_WORKERS=10; VM_BYTES=512M; ...                                                       |
+| `***`                       | All variables from --mux-yaml         | TIMEOUT=60; IO_WORKERS=10; VM_BYTES=512M; ...                                                       |
 +-----------------------------+---------------------------------------+-----------------------------------------------------------------------------------------------------+
 
 

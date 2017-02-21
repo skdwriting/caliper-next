@@ -2,7 +2,6 @@ language: python
 
 python:
     - "2.7_with_system_site_packages"
-    - "2.6"
 
 branches:
     only:
@@ -14,6 +13,11 @@ cache:
         - $HOME/.cache/pip
 
 sudo: false
+
+addons:
+  apt:
+    packages:
+    - python-libvirt
 
 install:
     - pip install -r requirements-travis.txt
@@ -35,7 +39,7 @@ script:
             echo
             echo
             git checkout $COMMIT || ERR=$(echo -e "$ERR\nUnable to checkout $(git log -1 --oneline $COMMIT)")
-            SELF_CHECK_CONTINUOUS=y make check || ERR=$(echo -e "$ERR\nmake check of $(git log -1 --oneline) failed")
+            AVOCADO_RESULTSDIR_CHECK=y SELF_CHECK_CONTINUOUS=y make check || ERR=$(echo -e "$ERR\nmake check of $(git log -1 --oneline) failed")
             make clean
         done
         if [ "$ERR" ]; then

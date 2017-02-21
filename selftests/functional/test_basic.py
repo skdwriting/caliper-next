@@ -11,13 +11,9 @@ import tempfile
 import time
 import xml.dom.minidom
 import zipfile
+import unittest
 
 import pkg_resources
-
-if sys.version_info[:2] == (2, 6):
-    import unittest2 as unittest
-else:
-    import unittest
 
 from avocado.core import exit_codes
 from avocado.utils import astring
@@ -505,8 +501,8 @@ class RunnerOperationTest(unittest.TestCase):
     @unittest.skipIf(not READ_BINARY, "read binary not available.")
     def test_read(self):
         os.chdir(basedir)
-        cmd = "./scripts/avocado run --job-results-dir %s %s" % (self.tmpdir,
-                                                                 READ_BINARY)
+        cmd = "./scripts/avocado run --sysinfo=off --job-results-dir %s %s"
+        cmd %= (self.tmpdir, READ_BINARY)
         result = process.run(cmd, timeout=10, ignore_status=True)
         self.assertLess(result.duration, 8, "Duration longer than expected."
                         "\n%s" % result)

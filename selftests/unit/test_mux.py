@@ -1,16 +1,13 @@
 import copy
 import itertools
 import pickle
-import sys
+import unittest
+import yaml
 
 from avocado.core import mux, tree, varianter
 from avocado.plugins import yaml_to_mux
 
 
-if sys.version_info[:2] == (2, 6):
-    import unittest2 as unittest
-else:
-    import unittest
 if __name__ == "__main__":
     PATH_PREFIX = "../../../../"
 else:
@@ -384,6 +381,29 @@ class TestAvocadoParams(unittest.TestCase):
         # params2 is sliced the other way around so it returns before the clash
         self.assertEqual(self.params2.get('clash3', default='nnn'),
                          'also equal')
+
+
+class TestMultipleLoaders(unittest.TestCase):
+
+    def test_multiple_loaders(self):
+        """
+        Verifies that `create_from_yaml` does not affects the main yaml.Loader
+        """
+        nondebug = yaml_to_mux.create_from_yaml(['/:' + PATH_PREFIX +
+                                                 'examples/mux-selftest.'
+                                                 'yaml'])
+        self.assertEqual(type(nondebug), mux.MuxTreeNode)
+        self.assertEqual(type(nondebug.children[0]), mux.MuxTreeNode)
+        debug = yaml_to_mux.create_from_yaml(['/:' + PATH_PREFIX +
+                                              'examples/mux-selftest.'
+                                              'yaml'],
+                                             debug=True)
+        self.assertEqual(type(debug), mux.MuxTreeNodeDebug)
+        # Debug nodes are of generated "NamedTreeNodeDebug" type
+        self.assertEqual("<class 'avocado.core.tree.NamedTreeNodeDebug'>",
+                         str(type(debug.children[0])))
+        plain = yaml.load("foo: bar")
+        self.assertEqual(type(plain), dict)
 
 
 class TestPathParent(unittest.TestCase):

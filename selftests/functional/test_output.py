@@ -2,16 +2,11 @@ import json
 import tempfile
 import os
 import re
-import sys
 import shutil
+import unittest
 from xml.dom import minidom
 
 import pkg_resources
-
-if sys.version_info[:2] == (2, 6):
-    import unittest2 as unittest
-else:
-    import unittest
 
 from avocado.core import exit_codes
 from avocado.core.output import TermSupport
@@ -431,6 +426,17 @@ class OutputPluginTest(unittest.TestCase):
         perl_script.save()
         os.chdir(basedir)
         process.run("perl %s" % perl_script)
+
+    def test_tap_totaltests(self):
+        os.chdir(basedir)
+        cmd_line = ("./scripts/avocado run passtest.py "
+                    "-m examples/tests/sleeptest.py.data/sleeptest.yaml "
+                    "--job-results-dir %s "
+                    "--tap -" % self.tmpdir)
+        result = process.run(cmd_line)
+        expr = '1..4'
+        self.assertIn(expr, result.stdout, "'%s' not found in:\n%s"
+                      % (expr, result.stdout))
 
     def test_broken_pipe(self):
         os.chdir(basedir)

@@ -1,14 +1,9 @@
 #!/usr/bin/env python
 
 import os
-import sys
 import tempfile
 import shutil
-
-if sys.version_info[:2] == (2, 6):
-    import unittest2 as unittest
-else:
-    import unittest
+import unittest
 
 from avocado.core import exit_codes
 from avocado.core import test
@@ -46,7 +41,7 @@ class TestsTmpDirTests(unittest.TestCase):
     def setUp(self):
         self.tmpdir = tempfile.mkdtemp(prefix='avocado_' + __name__)
         self.simple_test = script.TemporaryScript(
-            'test_simple.py',
+            'test_simple.sh',
             SIMPLE_SCRIPT)
         self.simple_test.save()
         self.instrumented_test = script.TemporaryScript(
@@ -62,6 +57,8 @@ class TestsTmpDirTests(unittest.TestCase):
                          "%d:\n%s" % (cmd_line, expected_rc, result))
         return result
 
+    @unittest.skipIf(os.environ.get("AVOCADO_CHECK_FULL") != "1",
+                     "Temporary skip because of errors on Travis-CI")
     @unittest.skipIf(test.COMMON_TMPDIR_NAME in os.environ,
                      "%s already set in os.environ"
                      % test.COMMON_TMPDIR_NAME)

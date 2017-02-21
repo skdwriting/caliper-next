@@ -75,6 +75,8 @@ So the file parsing order is:
 In this order, meaning that what you set on your local config file may override what's defined in the system wide files.
 
 .. note::  Please note that if avocado is running from git repos, those files will be ignored in favor of in tree configuration files. This is something that would normally only affect people developing avocado, and if you are in doubt, ``avocado config`` will tell you exactly which files are being used in any given situation.
+.. note::  When avocado runs inside virtualenv than path for global config files is also changed. For example, `avocado.conf` comes from the virual-env path `venv/etc/avocado/avocado.conf`.
+
 
 Order of precedence for values used in tests
 ============================================
@@ -122,7 +124,7 @@ When running tests, we are frequently looking to:
   images
 
 Avocado has a module dedicated to find those paths, to avoid cumbersome
-path manipulation magic that people had to do in previous test frameworks [1].
+path manipulation magic that people had to do in previous test frameworks [#f1]_.
 
 If you want to list all relevant directories for your test, you can use
 `avocado config --datadir` command to list those directories. Executing
@@ -161,4 +163,4 @@ since that is customary among unix programs.
 The next section of the documentation explains how you can see and set config
 values that modify the behavior for the Avocado utilities and plugins.
 
-[1] For example, autotest.
+.. [#f1] For example, autotest.
